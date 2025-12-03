@@ -22,7 +22,7 @@ export class ChatGroupModel {
 
   async findById(id: string): Promise<ChatGroupItem | undefined> {
     const item = await this.db.query.chatGroups.findFirst({
-      where: and(eq(chatGroups.id, id), eq(chatGroups.userId, this.userId)),
+      where: eq(chatGroups.id, id),
     });
 
     return item;
@@ -31,7 +31,6 @@ export class ChatGroupModel {
   async query(): Promise<ChatGroupItem[]> {
     return this.db.query.chatGroups.findMany({
       orderBy: [desc(chatGroups.updatedAt)],
-      where: eq(chatGroups.userId, this.userId),
     });
   }
 
@@ -132,12 +131,12 @@ export class ChatGroupModel {
   async update(id: string, value: Partial<ChatGroupItem>): Promise<ChatGroupItem> {
     const [result] = await this.db
       .update(chatGroups)
-      .set(value)
-      .where(and(eq(chatGroups.id, id), eq(chatGroups.userId, this.userId)))
+      .set({ ...value, updatedAt: new Date() })
+      .where(eq(chatGroups.id, id))
       .returning();
 
     if (!result) {
-      throw new Error('Chat group not found or access denied');
+      throw new Error('Chat group not found');
     }
 
     return result;
@@ -235,20 +234,17 @@ export class ChatGroupModel {
 
   async delete(id: string): Promise<ChatGroupItem> {
     // Agents are automatically deleted due to CASCADE constraint
-    const [result] = await this.db
-      .delete(chatGroups)
-      .where(and(eq(chatGroups.id, id), eq(chatGroups.userId, this.userId)))
-      .returning();
+    const [result] = await this.db.delete(chatGroups).where(eq(chatGroups.id, id)).returning();
 
     if (!result) {
-      throw new Error('Chat group not found or access denied');
+      throw new Error('Chat group not found');
     }
 
     return result;
   }
 
   async deleteAll(): Promise<void> {
-    await this.db.delete(chatGroups).where(eq(chatGroups.userId, this.userId));
+    await this.db.delete(chatGroups);
   }
 
   // ******* Agent Query Methods ******* //
@@ -276,20 +272,15 @@ export class ChatGroupModel {
     const groupIds = await this.db
       .selectDistinct({ chatGroupId: chatGroupsAgents.chatGroupId })
       .from(chatGroupsAgents)
-      .where(
-        and(eq(chatGroupsAgents.userId, this.userId), inArray(chatGroupsAgents.agentId, agentIds)),
-      );
+      .where(inArray(chatGroupsAgents.agentId, agentIds));
 
     if (groupIds.length === 0) return [];
 
     return this.db.query.chatGroups.findMany({
       orderBy: [desc(chatGroups.updatedAt)],
-      where: and(
-        inArray(
-          chatGroups.id,
-          groupIds.map((g) => g.chatGroupId),
-        ),
-        eq(chatGroups.userId, this.userId),
+      where: inArray(
+        chatGroups.id,
+        groupIds.map((g) => g.chatGroupId),
       ),
     });
   }

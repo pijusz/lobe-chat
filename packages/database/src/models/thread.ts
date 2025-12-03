@@ -1,5 +1,5 @@
 import { CreateThreadParams, ThreadStatus } from '@lobechat/types';
-import { and, desc, eq } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 
 import { ThreadItem, threads } from '../schemas';
 import { LobeChatDatabase } from '../type';
@@ -40,19 +40,15 @@ export class ThreadModel {
   };
 
   delete = async (id: string) => {
-    return this.db.delete(threads).where(and(eq(threads.id, id), eq(threads.userId, this.userId)));
+    return this.db.delete(threads).where(eq(threads.id, id));
   };
 
   deleteAll = async () => {
-    return this.db.delete(threads).where(eq(threads.userId, this.userId));
+    return this.db.delete(threads);
   };
 
   query = async () => {
-    const data = await this.db
-      .select(queryColumns)
-      .from(threads)
-      .where(eq(threads.userId, this.userId))
-      .orderBy(desc(threads.updatedAt));
+    const data = await this.db.select(queryColumns).from(threads).orderBy(desc(threads.updatedAt));
 
     return data as ThreadItem[];
   };
@@ -61,7 +57,7 @@ export class ThreadModel {
     const data = await this.db
       .select(queryColumns)
       .from(threads)
-      .where(and(eq(threads.topicId, topicId), eq(threads.userId, this.userId)))
+      .where(eq(threads.topicId, topicId))
       .orderBy(desc(threads.updatedAt));
 
     return data as ThreadItem[];
@@ -69,7 +65,7 @@ export class ThreadModel {
 
   findById = async (id: string) => {
     return this.db.query.threads.findFirst({
-      where: and(eq(threads.id, id), eq(threads.userId, this.userId)),
+      where: eq(threads.id, id),
     });
   };
 
@@ -77,6 +73,6 @@ export class ThreadModel {
     return this.db
       .update(threads)
       .set({ ...value, updatedAt: new Date() })
-      .where(and(eq(threads.id, id), eq(threads.userId, this.userId)));
+      .where(eq(threads.id, id));
   };
 }

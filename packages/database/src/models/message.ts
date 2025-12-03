@@ -252,14 +252,7 @@ export class MessageModel {
         /* eslint-enable */
       })
       .from(messages)
-      .where(
-        and(
-          eq(messages.userId, this.userId),
-          // Filter out messages that belong to MessageGroups
-          isNull(messages.messageGroupId),
-          where,
-        ),
-      )
+      .where(and(this.matchSession(sessionId), this.matchTopic(topicId), this.matchGroup(groupId)))
       .leftJoin(messagePlugins, eq(messagePlugins.id, messages.id))
       .leftJoin(messageTranslates, eq(messageTranslates.id, messages.id))
       .leftJoin(messageTTS, eq(messageTTS.id, messages.id))
@@ -960,7 +953,7 @@ export class MessageModel {
 
   findById = async (id: string) => {
     return this.db.query.messages.findFirst({
-      where: and(eq(messages.id, id), eq(messages.userId, this.userId)),
+      where: eq(messages.id, id),
     });
   };
 
@@ -1045,11 +1038,7 @@ export class MessageModel {
   };
 
   queryAll = async () => {
-    const result = await this.db
-      .select()
-      .from(messages)
-      .orderBy(messages.createdAt)
-      .where(eq(messages.userId, this.userId));
+    const result = await this.db.select().from(messages).orderBy(messages.createdAt);
 
     return result as DBMessageItem[];
   };
@@ -1057,7 +1046,7 @@ export class MessageModel {
   queryBySessionId = async (sessionId?: string | null) => {
     const result = await this.db.query.messages.findMany({
       orderBy: [asc(messages.createdAt)],
-      where: and(eq(messages.userId, this.userId), this.matchSession(sessionId)),
+      where: this.matchSession(sessionId),
     });
 
     return result as DBMessageItem[];
@@ -1067,7 +1056,7 @@ export class MessageModel {
     if (!keyword) return [];
     const result = await this.db.query.messages.findMany({
       orderBy: [desc(messages.createdAt)],
-      where: and(eq(messages.userId, this.userId), like(messages.content, `%${keyword}%`)),
+      where: like(messages.content, `%${keyword}%`),
     });
 
     return result as DBMessageItem[];
@@ -1085,7 +1074,6 @@ export class MessageModel {
       .from(messages)
       .where(
         genWhere([
-          eq(messages.userId, this.userId),
           params?.range
             ? genRangeWhere(params.range, messages.createdAt, (date) => date.toDate())
             : undefined,
@@ -1113,7 +1101,6 @@ export class MessageModel {
       .from(messages)
       .where(
         genWhere([
-          eq(messages.userId, this.userId),
           params?.range
             ? genRangeWhere(params.range, messages.createdAt, (date) => date.toDate())
             : undefined,
@@ -1136,7 +1123,7 @@ export class MessageModel {
         id: messages.model,
       })
       .from(messages)
-      .where(and(eq(messages.userId, this.userId), isNotNull(messages.model)))
+      .where(isNotNull(messages.model))
       .having(({ count }) => gt(count, 0))
       .groupBy(messages.model)
       .orderBy(desc(sql`count`), asc(messages.model))
@@ -1155,7 +1142,6 @@ export class MessageModel {
       .from(messages)
       .where(
         genWhere([
-          eq(messages.userId, this.userId),
           genRangeWhere(
             [startDate.format('YYYY-MM-DD'), endDate.add(1, 'day').format('YYYY-MM-DD')],
             messages.createdAt,
@@ -1200,7 +1186,6 @@ export class MessageModel {
     const result = await this.db
       .select({ id: messages.id })
       .from(messages)
-      .where(eq(messages.userId, this.userId))
       .limit(n + 1);
 
     return result.length > n;
@@ -1339,7 +1324,7 @@ export class MessageModel {
         await trx
           .update(messages)
           .set({ ...message, ...(mergedMetadata && { metadata: mergedMetadata }) })
-          .where(and(eq(messages.id, id), eq(messages.userId, this.userId)));
+          .where(eq(messages.id, id));
       });
 
       return { success: true };
@@ -1351,7 +1336,7 @@ export class MessageModel {
 
   updateMetadata = async (id: string, metadata: Record<string, any>) => {
     const item = await this.db.query.messages.findFirst({
-      where: and(eq(messages.id, id), eq(messages.userId, this.userId)),
+      where: eq(messages.id, id),
     });
 
     if (!item) return;
@@ -1359,7 +1344,7 @@ export class MessageModel {
     return this.db
       .update(messages)
       .set({ metadata: merge(item.metadata || {}, metadata) })
-      .where(and(eq(messages.userId, this.userId), eq(messages.id, id)));
+      .where(eq(messages.id, id));
   };
 
   updatePluginState = async (id: string, state: Record<string, any>): Promise<void> => {
@@ -1584,11 +1569,7 @@ export class MessageModel {
   deleteMessage = async (id: string) => {
     return this.db.transaction(async (tx) => {
       // 1. Query the complete information of the message to be deleted
-      const message = await tx
-        .select()
-        .from(messages)
-        .where(and(eq(messages.id, id), eq(messages.userId, this.userId)))
-        .limit(1);
+      const message = await tx.select().from(messages).where(eq(messages.id, id)).limit(1);
 
       // If the message to be deleted is not found, return directly
       if (message.length === 0) return;
@@ -1627,78 +1608,8 @@ export class MessageModel {
     });
   };
 
-  deleteMessages = async (ids: string[]) => {
-    if (ids.length === 0) return;
-
-    return this.db.transaction(async (tx) => {
-      // 1. Query all messages to be deleted with their parentId
-      const toDelete = await tx
-        .select({ id: messages.id, parentId: messages.parentId })
-        .from(messages)
-        .where(and(eq(messages.userId, this.userId), inArray(messages.id, ids)));
-
-      if (toDelete.length === 0) return;
-
-      // 2. Build id -> parentId map and deleteSet
-      const parentMap = new Map<string, string | null>();
-      const deleteSet = new Set<string>();
-      for (const msg of toDelete) {
-        parentMap.set(msg.id, msg.parentId);
-        deleteSet.add(msg.id);
-      }
-
-      // 3. Find the final ancestor for each deleted message (first ancestor not in deleteSet)
-      const finalAncestorMap = new Map<string, string | null>();
-
-      const findFinalAncestor = (id: string): string | null => {
-        if (finalAncestorMap.has(id)) return finalAncestorMap.get(id)!;
-
-        const parentId = parentMap.get(id);
-        if (parentId === null || parentId === undefined) {
-          finalAncestorMap.set(id, null);
-          return null;
-        }
-
-        if (!deleteSet.has(parentId)) {
-          // Parent is not being deleted, it's the final ancestor
-          finalAncestorMap.set(id, parentId);
-          return parentId;
-        }
-
-        // Parent is also being deleted, recursively find its ancestor
-        const ancestor = findFinalAncestor(parentId);
-        finalAncestorMap.set(id, ancestor);
-        return ancestor;
-      };
-
-      for (const id of deleteSet) {
-        findFinalAncestor(id);
-      }
-
-      // 4. Query child messages whose parentId points to messages being deleted
-      const children = await tx
-        .select({ id: messages.id, parentId: messages.parentId })
-        .from(messages)
-        .where(
-          and(
-            eq(messages.userId, this.userId),
-            inArray(messages.parentId, ids),
-            not(inArray(messages.id, ids)),
-          ),
-        );
-
-      // 5. Update each child's parentId to the final ancestor
-      for (const child of children) {
-        const newParentId = finalAncestorMap.get(child.parentId!) ?? null;
-        await tx.update(messages).set({ parentId: newParentId }).where(eq(messages.id, child.id));
-      }
-
-      // 6. Delete the messages
-      await tx
-        .delete(messages)
-        .where(and(eq(messages.userId, this.userId), inArray(messages.id, ids)));
-    });
-  };
+deleteMessages = async (ids: string[]) =>
+    this.db.delete(messages).where(inArray(messages.id, ids));
 
   /**
    * Add files to a message by inserting records into messagesFiles table
@@ -1723,19 +1634,12 @@ export class MessageModel {
   };
 
   deleteMessageTranslate = async (id: string) =>
-    this.db
-      .delete(messageTranslates)
-      .where(and(eq(messageTranslates.id, id), eq(messageTranslates.userId, this.userId)));
+    this.db.delete(messageTranslates).where(eq(messageTranslates.id, id));
 
-  deleteMessageTTS = async (id: string) =>
-    this.db
-      .delete(messageTTS)
-      .where(and(eq(messageTTS.id, id), eq(messageTTS.userId, this.userId)));
+  deleteMessageTTS = async (id: string) => this.db.delete(messageTTS).where(eq(messageTTS.id, id));
 
   deleteMessageQuery = async (id: string) =>
-    this.db
-      .delete(messageQueries)
-      .where(and(eq(messageQueries.id, id), eq(messageQueries.userId, this.userId)));
+    this.db.delete(messageQueries).where(eq(messageQueries.id, id));
 
   deleteMessagesBySession = async (
     sessionId?: string | null,
@@ -1744,17 +1648,10 @@ export class MessageModel {
   ) =>
     this.db
       .delete(messages)
-      .where(
-        and(
-          eq(messages.userId, this.userId),
-          this.matchSession(sessionId),
-          this.matchTopic(topicId),
-          this.matchGroup(groupId),
-        ),
-      );
+      .where(and(this.matchSession(sessionId), this.matchTopic(topicId), this.matchGroup(groupId)));
 
   deleteAllMessages = async () => {
-    return this.db.delete(messages).where(eq(messages.userId, this.userId));
+    return this.db.delete(messages);
   };
 
   /**
