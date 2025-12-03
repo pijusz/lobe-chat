@@ -1,0 +1,92 @@
+## Custom Dockerfile for pre-built LobeChat with Shared Chats
+## Uses locally built .next/standalone instead of building in Docker
+
+ARG NODEJS_VERSION="24"
+
+## Base image - create distroless-like structure
+FROM node:${NODEJS_VERSION}-slim AS base
+
+ENV DEBIAN_FRONTEND="noninteractive"
+
+RUN \
+    apt update \
+    && apt install ca-certificates proxychains-ng -qy \
+    && mkdir -p /distroless/bin /distroless/etc /distroless/etc/ssl/certs /distroless/lib \
+    && cp /usr/lib/$(arch)-linux-gnu/libproxychains.so.4 /distroless/lib/libproxychains.so.4 \
+    && cp /usr/lib/$(arch)-linux-gnu/libdl.so.2 /distroless/lib/libdl.so.2 \
+    && cp /usr/bin/proxychains4 /distroless/bin/proxychains \
+    && cp /etc/proxychains4.conf /distroless/etc/proxychains4.conf \
+    && cp /usr/lib/$(arch)-linux-gnu/libstdc++.so.6 /distroless/lib/libstdc++.so.6 \
+    && cp /usr/lib/$(arch)-linux-gnu/libgcc_s.so.1 /distroless/lib/libgcc_s.so.1 \
+    && cp /usr/local/bin/node /distroless/bin/node \
+    && cp /etc/ssl/certs/ca-certificates.crt /distroless/etc/ssl/certs/ca-certificates.crt \
+    && rm -rf /tmp/* /var/lib/apt/lists/* /var/tmp/*
+
+## Dependencies for DB migration and native modules
+FROM node:${NODEJS_VERSION}-slim AS deps
+
+WORKDIR /deps
+RUN npm init -y && npm install pg drizzle-orm && npm install --os=linux --cpu=x64 sharp
+
+## Application image
+FROM busybox:latest AS app
+
+COPY --from=base /distroless/ /
+
+# Copy pre-built standalone app (includes node_modules with pg, drizzle-orm, etc.)
+COPY .next/standalone /app/
+
+# Copy database migrations
+COPY packages/database/migrations /app/migrations
+COPY scripts/migrateServerDB/docker.cjs /app/docker.cjs
+COPY scripts/migrateServerDB/errorHint.js /app/errorHint.js
+
+# Copy migration dependencies (pg and drizzle-orm for docker.cjs)
+COPY --from=deps /deps/node_modules/pg /app/node_modules/pg
+COPY --from=deps /deps/node_modules/drizzle-orm /app/node_modules/drizzle-orm
+
+# Copy sharp for linux-x64 (image optimization)
+COPY --from=deps /deps/node_modules/sharp /app/node_modules/sharp
+COPY --from=deps /deps/node_modules/@img /app/node_modules/@img
+
+# Copy server launcher
+COPY scripts/serverLauncher/startServer.js /app/startServer.js
+
+RUN \
+    addgroup -S -g 1001 nodejs \
+    && adduser -D -G nodejs -H -S -h /app -u 1001 nextjs \
+    && chown -R nextjs:nodejs /app /etc/proxychains4.conf
+
+## Production image
+FROM scratch
+
+COPY --from=app / /
+
+ENV NODE_ENV="production" \
+    HOSTNAME="0.0.0.0" \
+    PORT="3210"
+
+# Database settings
+ENV DATABASE_DRIVER="node" \
+    DATABASE_URL="" \
+    KEY_VAULTS_SECRET=""
+
+# Auth settings
+ENV NEXT_PUBLIC_ENABLE_NEXT_AUTH="1" \
+    NEXT_PUBLIC_ENABLE_BETTER_AUTH="0" \
+    NEXT_PUBLIC_ENABLE_CLERK_AUTH="0"
+
+# S3 Storage
+ENV S3_ENDPOINT="" \
+    S3_BUCKET="" \
+    S3_ACCESS_KEY_ID="" \
+    S3_SECRET_ACCESS_KEY="" \
+    S3_PUBLIC_DOMAIN=""
+
+USER nextjs
+
+EXPOSE 3210/tcp
+
+ENTRYPOINT ["/bin/node"]
+
+CMD ["/app/startServer.js"]
