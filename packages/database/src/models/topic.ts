@@ -44,7 +44,7 @@ export class TopicModel {
           updatedAt: topics.updatedAt,
         })
         .from(topics)
-        .where(and(eq(topics.userId, this.userId), this.matchContainer(containerId)))
+        .where(this.matchContainer(containerId))
         // In boolean sorting, false is considered "smaller" than true.
         // So here we use desc to ensure that topics with favorite as true are in front.
         .orderBy(desc(topics.favorite), desc(topics.updatedAt))
@@ -55,16 +55,12 @@ export class TopicModel {
 
   findById = async (id: string) => {
     return this.db.query.topics.findFirst({
-      where: and(eq(topics.id, id), eq(topics.userId, this.userId)),
+      where: eq(topics.id, id),
     });
   };
 
   queryAll = async (): Promise<TopicItem[]> => {
-    return this.db
-      .select()
-      .from(topics)
-      .orderBy(topics.updatedAt)
-      .where(eq(topics.userId, this.userId));
+    return this.db.select().from(topics).orderBy(topics.updatedAt);
   };
 
   queryByKeyword = async (keyword: string, containerId?: string | null): Promise<TopicItem[]> => {
@@ -75,11 +71,7 @@ export class TopicModel {
     // Query topics matching by title
     const topicsByTitle = await this.db.query.topics.findMany({
       orderBy: [desc(topics.updatedAt)],
-      where: and(
-        eq(topics.userId, this.userId),
-        this.matchContainer(containerId),
-        ilike(topics.title, `%${keywordLowerCase}%`),
-      ),
+      where: and(this.matchContainer(containerId), ilike(topics.title, `%${keywordLowerCase}%`)),
     });
 
     // Query topic IDs matching by message content
@@ -88,12 +80,7 @@ export class TopicModel {
       .from(messages)
       .innerJoin(topics, eq(messages.topicId, topics.id))
       .where(
-        and(
-          eq(messages.userId, this.userId),
-          ilike(messages.content, `%${keywordLowerCase}%`),
-          eq(topics.userId, this.userId),
-          this.matchContainer(containerId),
-        ),
+        and(ilike(messages.content, `%${keywordLowerCase}%`), this.matchContainer(containerId)),
       )
       .groupBy(messages.topicId);
     // If no topics found by message content, return topics matching by title
@@ -135,7 +122,6 @@ export class TopicModel {
       .from(topics)
       .where(
         genWhere([
-          eq(topics.userId, this.userId),
           params?.range
             ? genRangeWhere(params.range, topics.createdAt, (date) => date.toDate())
             : undefined,
@@ -160,7 +146,6 @@ export class TopicModel {
         title: topics.title,
       })
       .from(topics)
-      .where(and(eq(topics.userId, this.userId)))
       .leftJoin(messages, eq(topics.id, messages.topicId))
       .groupBy(topics.id)
       .orderBy(desc(sql`count`))
@@ -237,7 +222,7 @@ export class TopicModel {
     return this.db.transaction(async (tx) => {
       // find original topic
       const originalTopic = await tx.query.topics.findFirst({
-        where: and(eq(topics.id, topicId), eq(topics.userId, this.userId)),
+        where: eq(topics.id, topicId),
       });
 
       if (!originalTopic) {
@@ -259,7 +244,7 @@ export class TopicModel {
       const originalMessages = await tx
         .select()
         .from(messages)
-        .where(and(eq(messages.topicId, topicId), eq(messages.userId, this.userId)));
+        .where(eq(messages.topicId, topicId));
 
       // copy messages
       const duplicatedMessages = await Promise.all(
@@ -291,38 +276,32 @@ export class TopicModel {
    * Delete a session, also delete all messages and topics associated with it.
    */
   delete = async (id: string) => {
-    return this.db.delete(topics).where(and(eq(topics.id, id), eq(topics.userId, this.userId)));
+    return this.db.delete(topics).where(eq(topics.id, id));
   };
 
   /**
    * Deletes multiple topics based on the sessionId.
    */
   batchDeleteBySessionId = async (sessionId?: string | null) => {
-    return this.db
-      .delete(topics)
-      .where(and(this.matchSession(sessionId), eq(topics.userId, this.userId)));
+    return this.db.delete(topics).where(this.matchSession(sessionId));
   };
 
   /**
    * Deletes multiple topics based on the groupId.
    */
   batchDeleteByGroupId = async (groupId?: string | null) => {
-    return this.db
-      .delete(topics)
-      .where(and(this.matchGroup(groupId), eq(topics.userId, this.userId)));
+    return this.db.delete(topics).where(this.matchGroup(groupId));
   };
 
   /**
    * Deletes multiple topics and all messages associated with them in a transaction.
    */
   batchDelete = async (ids: string[]) => {
-    return this.db
-      .delete(topics)
-      .where(and(inArray(topics.id, ids), eq(topics.userId, this.userId)));
+    return this.db.delete(topics).where(inArray(topics.id, ids));
   };
 
   deleteAll = async () => {
-    return this.db.delete(topics).where(eq(topics.userId, this.userId));
+    return this.db.delete(topics);
   };
 
   // **************** Update *************** //
@@ -331,7 +310,7 @@ export class TopicModel {
     return this.db
       .update(topics)
       .set({ ...data, updatedAt: new Date() })
-      .where(and(eq(topics.id, id), eq(topics.userId, this.userId)))
+      .where(eq(topics.id, id))
       .returning();
   };
 
