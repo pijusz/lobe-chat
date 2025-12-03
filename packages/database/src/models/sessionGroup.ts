@@ -1,9 +1,8 @@
-import { and, asc, desc, eq } from 'drizzle-orm';
-
-import { LobeChatDatabase } from '../type';
-import { idGenerator } from '../utils/idGenerator';
+import { asc, desc, eq } from 'drizzle-orm';
 
 import { SessionGroupItem, sessionGroups } from '../schemas';
+import { LobeChatDatabase } from '../type';
+import { idGenerator } from '../utils/idGenerator';
 
 export class SessionGroupModel {
   private userId: string;
@@ -24,25 +23,22 @@ export class SessionGroupModel {
   };
 
   delete = async (id: string) => {
-    return this.db
-      .delete(sessionGroups)
-      .where(and(eq(sessionGroups.id, id), eq(sessionGroups.userId, this.userId)));
+    return this.db.delete(sessionGroups).where(eq(sessionGroups.id, id));
   };
 
   deleteAll = async () => {
-    return this.db.delete(sessionGroups).where(eq(sessionGroups.userId, this.userId));
+    return this.db.delete(sessionGroups);
   };
 
   query = async () => {
     return this.db.query.sessionGroups.findMany({
       orderBy: [asc(sessionGroups.sort), desc(sessionGroups.createdAt)],
-      where: eq(sessionGroups.userId, this.userId),
     });
   };
 
   findById = async (id: string) => {
     return this.db.query.sessionGroups.findFirst({
-      where: and(eq(sessionGroups.id, id), eq(sessionGroups.userId, this.userId)),
+      where: eq(sessionGroups.id, id),
     });
   };
 
@@ -50,7 +46,7 @@ export class SessionGroupModel {
     return this.db
       .update(sessionGroups)
       .set({ ...value, updatedAt: new Date() })
-      .where(and(eq(sessionGroups.id, id), eq(sessionGroups.userId, this.userId)));
+      .where(eq(sessionGroups.id, id));
   };
 
   updateOrder = async (sortMap: { id: string; sort: number }[]) => {
@@ -59,7 +55,7 @@ export class SessionGroupModel {
         return tx
           .update(sessionGroups)
           .set({ sort, updatedAt: new Date() })
-          .where(and(eq(sessionGroups.id, id), eq(sessionGroups.userId, this.userId)));
+          .where(eq(sessionGroups.id, id));
       });
 
       await Promise.all(updates);
