@@ -17,6 +17,23 @@ import { StateCreator } from 'zustand/vanilla';
 
 import { messageService } from '@/services/message';
 import { ChatStore } from '@/store/chat/store';
+import { useUserStore } from '@/store/user';
+import { userProfileSelectors } from '@/store/user/selectors';
+
+/**
+ * Generate initials from a display name
+ * e.g. "John Doe" -> "JD", "Alice" -> "A"
+ */
+const getInitials = (name?: string | null): string => {
+  if (!name) return '?';
+  return name
+    .split(' ')
+    .map((word) => word[0])
+    .filter(Boolean)
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
+};
 
 /**
  * Context for optimistic updates to specify session/topic isolation
@@ -174,7 +191,32 @@ export const messageOptimisticUpdate: StateCreator<
 
     // use optimistic update to avoid the slow waiting
     const tempId = 'tmp_' + nanoid();
-    internal_dispatchMessage({ id: tempId, type: 'createMessage', value: message });
+
+    // For user messages, capture author info for proper attribution in shared sessions
+    let messageWithAuthor = message;
+    if (message.role === 'user') {
+      const userState = useUserStore.getState();
+      const displayName = userProfileSelectors.nickName(userState);
+      const avatar = userProfileSelectors.userAvatar(userState);
+      const userId = userProfileSelectors.userId(userState);
+
+      if (userId) {
+        messageWithAuthor = {
+          ...message,
+          metadata: {
+            ...message.metadata,
+            author: {
+              avatar: avatar || undefined,
+              displayName: displayName || undefined,
+              initials: getInitials(displayName),
+              userId,
+            },
+          },
+        };
+      }
+    }
+
+    internal_dispatchMessage({ id: tempId, type: 'createMessage', value: messageWithAuthor });
 
     return tempId;
   },

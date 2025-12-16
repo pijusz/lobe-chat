@@ -6,6 +6,7 @@ import { ReactNode, memo, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Flexbox } from 'react-layout-kit';
 
+import { DEFAULT_USER_AVATAR } from '@/const/meta';
 import Avatar from '@/features/ChatItem/components/Avatar';
 import BorderSpacing from '@/features/ChatItem/components/BorderSpacing';
 import MessageContent from '@/features/ChatItem/components/MessageContent';
@@ -51,12 +52,19 @@ const UserMessage = memo<UserMessageProps>(({ id, disableEditing, index }) => {
     isEqual,
   ) as UIChatMessage;
 
-  const { ragQuery, content, createdAt, error, role, extra, targetId } = item;
+  const { ragQuery, content, createdAt, error, role, extra, targetId, meta } = item;
 
   const { t } = useTranslation('chat');
   const { mobile } = useResponsive();
-  const avatar = useUserAvatar();
-  const title = useUserStore(userProfileSelectors.displayUserName);
+  const currentUserAvatar = useUserAvatar();
+  const currentUserTitle = useUserStore(userProfileSelectors.displayUserName);
+
+  // Use author info from message metadata if available, otherwise fall back to current user
+  // This enables proper attribution in shared sessions
+  const authorMeta = meta as { avatar?: string; initials?: string; title?: string } | undefined;
+  const avatar =
+    authorMeta?.avatar || authorMeta?.initials || currentUserAvatar || DEFAULT_USER_AVATAR;
+  const title = authorMeta?.title || currentUserTitle;
 
   const displayMode = useAgentStore(agentChatConfigSelectors.displayMode);
 

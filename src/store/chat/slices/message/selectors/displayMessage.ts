@@ -31,6 +31,16 @@ import { messageMapKey } from '../../../utils/messageMapKey';
 const getMeta = (message: UIChatMessage) => {
   switch (message.role) {
     case 'user': {
+      // Check if message has author info (for proper attribution in shared sessions)
+      const author = message.metadata?.author;
+      if (author) {
+        return {
+          avatar: author.avatar,
+          initials: author.initials,
+          title: author.displayName,
+        };
+      }
+      // Fallback for old messages without author metadata
       return {
         avatar: userProfileSelectors.userAvatar(useUserStore.getState()) || DEFAULT_USER_AVATAR,
       };

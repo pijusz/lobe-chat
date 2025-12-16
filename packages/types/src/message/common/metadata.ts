@@ -107,6 +107,18 @@ export interface ModelPerformance {
   latency?: number;
 }
 
+/**
+ * Author information snapshot stored with messages
+ * Captures author info at message creation time for proper attribution
+ */
+export interface MessageAuthor {
+  userId: string;
+  displayName?: string;
+  avatar?: string;
+  /** Fallback initials derived from displayName, e.g. "John Doe" -> "JD" */
+  initials?: string;
+}
+
 export interface MessageMetadata extends ModelUsage, ModelPerformance {
   activeBranchIndex?: number;
   activeColumn?: boolean;
@@ -130,4 +142,8 @@ export interface MessageMetadata extends ModelUsage, ModelPerformance {
   isMultimodal?: boolean;
   // message content is multimodal, display content in the streaming, won't save to db
   tempDisplayContent?: string;
+  /**
+   * Author information snapshot for message attribution in shared sessions
+   */
+  author?: MessageAuthor;
 }
