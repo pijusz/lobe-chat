@@ -62,6 +62,7 @@ import {
   messages,
   messagesFiles,
   threads,
+  users,
 } from '../schemas';
 import { LobeChatDatabase } from '../type';
 import { genEndDateWhere, genRangeWhere, genStartDateWhere, genWhere } from '../utils/genWhere';
@@ -1226,6 +1227,27 @@ export class MessageModel {
       // Ensure group message does not populate sessionId
       const normalizedMessage = message.groupId ? { ...message, sessionId: null } : message;
 
+      // Fetch author info for user messages to enable proper attribution in shared sessions
+      let authorMetadata: Record<string, unknown> | undefined;
+      if (message.role === 'user') {
+        const user = await this.db.query.users.findFirst({
+          columns: { avatar: true, fullName: true, id: true, username: true },
+          where: eq(users.id, this.userId),
+        });
+
+        if (user) {
+          const displayName = user.fullName || user.username;
+          authorMetadata = {
+            author: {
+              avatar: user.avatar || undefined,
+              displayName: displayName || undefined,
+              initials: this.getInitials(displayName),
+              userId: user.id,
+            },
+          };
+        }
+      }
+
       const [item] = (await trx
         .insert(messages)
         .values({
@@ -1233,6 +1255,10 @@ export class MessageModel {
           // TODO: remove this when the client is updated
           createdAt: createdAt ? new Date(createdAt) : undefined,
           id,
+          // Merge author metadata with any existing metadata
+          metadata: authorMetadata
+            ? { ...normalizedMessage.metadata, ...authorMetadata }
+            : normalizedMessage.metadata,
           model: fromModel,
           provider: fromProvider,
           updatedAt: updatedAt ? new Date(updatedAt) : undefined,
@@ -1697,5 +1723,20 @@ deleteMessages = async (ids: string[]) =>
   private matchThread = (threadId?: string | null) => {
     if (!!threadId) return eq(messages.threadId, threadId);
     return isNull(messages.threadId);
+  };
+
+  /**
+   * Generate initials from a display name
+   * e.g. "John Doe" -> "JD", "Alice" -> "A"
+   */
+  private getInitials = (name?: string | null): string => {
+    if (!name) return '?';
+    return name
+      .split(' ')
+      .map((word) => word[0])
+      .filter(Boolean)
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
   };
 }

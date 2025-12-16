@@ -1,8 +1,13 @@
 import { type AssistantContentBlock, type UIChatMessage } from '@lobechat/types';
 
+import { DEFAULT_USER_AVATAR } from '@/const/meta';
 import { INBOX_SESSION_ID } from '@/const/session';
 import { useAgentStore } from '@/store/agent';
 import { agentChatConfigSelectors } from '@/store/agent/selectors';
+import { useSessionStore } from '@/store/session';
+import { sessionMetaSelectors } from '@/store/session/selectors';
+import { useUserStore } from '@/store/user';
+import { userProfileSelectors } from '@/store/user/selectors';
 
 import { chatHelpers } from '../../../helpers';
 import type { ChatStoreState } from '../../../initialState';
@@ -19,6 +24,44 @@ import { messageMapKey } from '../../../utils/messageMapKey';
  *
  * DO NOT use these for data mutations - use dbMessage.ts selectors instead.
  */
+
+// ============= Meta Information ========== //
+
+const getMeta = (message: UIChatMessage) => {
+  switch (message.role) {
+    case 'user': {
+      // Check if message has author info (for proper attribution in shared sessions)
+      const author = message.metadata?.author;
+      if (author) {
+        return {
+          avatar: author.avatar,
+          initials: author.initials,
+          title: author.displayName,
+        };
+      }
+      // Fallback for old messages without author metadata
+      return {
+        avatar: userProfileSelectors.userAvatar(useUserStore.getState()) || DEFAULT_USER_AVATAR,
+      };
+    }
+
+    case 'system': {
+      return message.meta;
+    }
+
+    default: {
+      // For group chat, get meta from agent session
+      if (message.groupId && message.agentId) {
+        return sessionMetaSelectors.getAgentMetaByAgentId(message.agentId)(
+          useSessionStore.getState(),
+        );
+      }
+
+      // Otherwise, use the current session's agent meta for single agent chat
+      return sessionMetaSelectors.currentAgentMeta(useSessionStore.getState());
+    }
+  }
+};
 
 // ============= Basic Display Message Access ========== //
 

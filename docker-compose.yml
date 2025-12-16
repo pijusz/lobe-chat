@@ -1,0 +1,95 @@
+name: lobe-chat-sixteen
+
+services:
+  postgresql:
+    image: pgvector/pgvector:pg17
+    container_name: lobe-postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=${LOBE_DB_NAME}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: always
+    networks:
+      - lobe-network
+
+  lobe:
+    image: lobehub/lobe-chat-database
+    container_name: lobe-chat
+    ports:
+      - '${LOBE_PORT}:3210'
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    environment:
+      # ===================
+      # App Configuration
+      # ===================
+      - APP_URL=${APP_URL}
+      - NODE_ENV=production
+
+      # ===================
+      # Database
+      # ===================
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@postgresql:5432/${LOBE_DB_NAME}
+      - DATABASE_DRIVER=node
+
+      # ===================
+      # Secrets
+      # ===================
+      - AUTH_SECRET=${AUTH_SECRET}
+      - KEY_VAULTS_SECRET=${KEY_VAULTS_SECRET}
+
+      # ===================
+      # Better Auth (SSO)
+      # ===================
+      - AUTH_SSO_PROVIDERS=${AUTH_SSO_PROVIDERS}
+      - AUTH_GOOGLE_ID=${AUTH_GOOGLE_ID}
+      - AUTH_GOOGLE_SECRET=${AUTH_GOOGLE_SECRET}
+
+      # ===================
+      # S3 Storage
+      # ===================
+      - S3_ENDPOINT=${S3_ENDPOINT}
+      - S3_BUCKET=${S3_BUCKET}
+      - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY_ID}
+      - S3_SECRET_ACCESS_KEY=${S3_SECRET_ACCESS_KEY}
+      - S3_PUBLIC_DOMAIN=${S3_PUBLIC_DOMAIN}
+
+      # ===================
+      # LLM - OpenRouter
+      # ===================
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - OPENROUTER_MODEL_LIST=${OPENROUTER_MODEL_LIST}
+      - DEFAULT_AGENT_CONFIG=${DEFAULT_AGENT_CONFIG}
+      - ENABLED_OPENAI=0
+      - ENABLED_OLLAMA=0
+
+      # ===================
+      # Branding (optional)
+      # ===================
+      - NEXT_PUBLIC_CUSTOM_BRAND=${NEXT_PUBLIC_CUSTOM_BRAND}
+      - NEXT_PUBLIC_LOGO_URL=${NEXT_PUBLIC_LOGO_URL}
+
+      # ===================
+      # SSL Certs (for container outbound HTTPS)
+      # ===================
+      - NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
+      - SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+
+    restart: always
+    networks:
+      - lobe-network
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  lobe-network:
+    driver: bridge
