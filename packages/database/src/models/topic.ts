@@ -97,7 +97,6 @@ export class TopicModel {
     // If groupId is provided, query topics by groupId directly
     if (groupId) {
       const whereCondition = and(
-        eq(topics.userId, this.userId),
         eq(topics.groupId, groupId),
         excludeTriggerCondition,
       );
@@ -177,14 +176,14 @@ export class TopicModel {
             updatedAt: topics.updatedAt,
           })
           .from(topics)
-          .where(and(eq(topics.userId, this.userId), agentCondition, excludeTriggerCondition))
+          .where(and(agentCondition, excludeTriggerCondition))
           .orderBy(desc(topics.favorite), desc(topics.updatedAt))
           .limit(pageSize)
           .offset(offset),
         this.db
           .select({ count: count(topics.id) })
           .from(topics)
-          .where(and(eq(topics.userId, this.userId), agentCondition, excludeTriggerCondition)),
+          .where(and(agentCondition, excludeTriggerCondition)),
       ]);
 
       return { items, total: totalResult[0].count };
@@ -192,7 +191,6 @@ export class TopicModel {
 
     // Fallback to containerId-based query (backward compatibility)
     const whereCondition = and(
-      eq(topics.userId, this.userId),
       this.matchContainer(containerId),
       excludeTriggerCondition,
     );
@@ -272,7 +270,7 @@ export class TopicModel {
 
     const topicsByMessages = await this.db.query.topics.findMany({
       orderBy: [desc(topics.updatedAt)],
-      where: and(eq(topics.userId, this.userId), inArray(topics.id, topicIds)),
+      where: inArray(topics.id, topicIds),
     });
 
     // Merge results and deduplicate
@@ -378,16 +376,13 @@ export class TopicModel {
       .from(topics)
       .leftJoin(agents, eq(topics.agentId, agents.id))
       .where(
-        and(
-          eq(topics.userId, this.userId),
-          or(
-            // Group topics: has groupId
-            not(isNull(topics.groupId)),
-            // Inbox agent topics
-            eq(agents.slug, 'inbox'),
-            // Agent topics: exclude virtual agents
-            and(isNull(topics.groupId), ne(agents.virtual, true)),
-          ),
+        or(
+          // Group topics: has groupId
+          not(isNull(topics.groupId)),
+          // Inbox agent topics
+          eq(agents.slug, 'inbox'),
+          // Agent topics: exclude virtual agents
+          and(isNull(topics.groupId), ne(agents.virtual, true)),
         ),
       )
       .orderBy(desc(topics.updatedAt))
