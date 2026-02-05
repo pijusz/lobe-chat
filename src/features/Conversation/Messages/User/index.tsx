@@ -29,11 +29,17 @@ interface UserMessageProps {
 const UserMessage = memo<UserMessageProps>(({ id, disableEditing, index }) => {
   const item = useConversationStore(dataSelectors.getDisplayMessageById(id), isEqual)!;
   const actionsConfig = useConversationStore((s) => s.actionsBar?.user);
-  const { content, createdAt, error, role, extra, targetId } = item;
+  const { content, createdAt, error, role, extra, targetId, metadata } = item;
 
   const { t } = useTranslation('chat');
-  const avatar = useUserAvatar();
-  const title = useUserStore(userProfileSelectors.displayUserName);
+  const currentUserAvatar = useUserAvatar();
+  const currentUserTitle = useUserStore(userProfileSelectors.displayUserName);
+
+  // Use author from metadata if available (for shared workspace attribution)
+  // Fall back to current user for backwards compatibility
+  const author = metadata?.author;
+  const avatar = author?.avatar || currentUserAvatar;
+  const title = author?.displayName || currentUserTitle;
 
   // Get editing and loading state from ConversationStore
   const editing = useConversationStore(messageStateSelectors.isMessageEditing(id));
@@ -95,8 +101,8 @@ const UserMessage = memo<UserMessageProps>(({ id, disableEditing, index }) => {
       onDoubleClick={onDoubleClick}
       onMouseEnter={onMouseEnter}
       placement={'right'}
-      showAvatar={false}
-      showTitle={false}
+      showAvatar={true}
+      showTitle={true}
       time={createdAt}
       titleAddon={dmIndicator}
     >
