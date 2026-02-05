@@ -36,7 +36,7 @@ export const resolveContext = async (
     const [relation] = await db
       .select({ sessionId: agentsToSessions.sessionId })
       .from(agentsToSessions)
-      .where(and(eq(agentsToSessions.agentId, input.agentId), eq(agentsToSessions.userId, userId)))
+      .where(eq(agentsToSessions.agentId, input.agentId))
       .limit(1);
 
     if (relation) {
@@ -71,7 +71,7 @@ export const resolveAgentIdFromSession = async (
   const [relation] = await db
     .select({ agentId: agentsToSessions.agentId })
     .from(agentsToSessions)
-    .where(and(eq(agentsToSessions.sessionId, sessionId), eq(agentsToSessions.userId, userId)))
+    .where(eq(agentsToSessions.sessionId, sessionId))
     .limit(1);
 
   return relation?.agentId;
@@ -97,7 +97,7 @@ export const batchResolveAgentIdFromSessions = async (
   const relations = await db
     .select({ agentId: agentsToSessions.agentId, sessionId: agentsToSessions.sessionId })
     .from(agentsToSessions)
-    .where(and(eq(agentsToSessions.userId, userId), inArray(agentsToSessions.sessionId, sessionIds)));
+    .where(inArray(agentsToSessions.sessionId, sessionIds));
 
   return new Map(relations.map((r) => [r.sessionId, r.agentId]));
 };
