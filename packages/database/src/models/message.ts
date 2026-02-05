@@ -785,10 +785,7 @@ export class MessageModel {
     postProcessUrl?: (path: string | null, file: { fileType: string }) => Promise<string>,
   ): Promise<UIChatMessage[]> => {
     // 1. Query MessageGroups for this topic, optionally filtered by time range
-    const whereConditions = [
-      eq(messageGroups.userId, this.userId),
-      eq(messageGroups.topicId, topicId),
-    ];
+    const whereConditions = [eq(messageGroups.topicId, topicId)];
 
     // Add time range filter if provided (for pagination)
     if (timeRange) {
@@ -816,7 +813,7 @@ export class MessageModel {
         messageGroupId: messages.messageGroupId,
       })
       .from(messages)
-      .where(and(eq(messages.userId, this.userId), inArray(messages.messageGroupId, groupIds)))
+      .where(inArray(messages.messageGroupId, groupIds))
       .orderBy(asc(messages.createdAt));
 
     // 3. Query full message data using queryByIds (reuses all transformation logic)
@@ -908,7 +905,7 @@ export class MessageModel {
   private buildThreadQueryCondition = async (threadId: string): Promise<SQL | undefined> => {
     // Fetch the thread info to get sourceMessageId and type
     const thread = await this.db.query.threads.findFirst({
-      where: and(eq(threads.id, threadId), eq(threads.userId, this.userId)),
+      where: eq(threads.id, threadId),
     });
 
     if (!thread?.sourceMessageId || !thread?.topicId) {
@@ -941,7 +938,7 @@ export class MessageModel {
     const agentSession = await this.db
       .select({ sessionId: agentsToSessions.sessionId })
       .from(agentsToSessions)
-      .where(and(eq(agentsToSessions.agentId, agentId), eq(agentsToSessions.userId, this.userId)))
+      .where(eq(agentsToSessions.agentId, agentId))
       .limit(1);
 
     const associatedSessionId = agentSession[0]?.sessionId;

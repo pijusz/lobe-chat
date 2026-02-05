@@ -632,14 +632,11 @@ export class SessionModel {
         offset,
         // Keep deterministic ordering for keyword search results
         orderBy: [asc(agents.id)],
-        where: and(
-          eq(agents.userId, this.userId),
-          or(
-            like(sql`lower(${agents.title})` as unknown as Column, `%${keyword.toLowerCase()}%`),
-            like(
-              sql`lower(${agents.description})` as unknown as Column,
-              `%${keyword.toLowerCase()}%`,
-            ),
+        where: or(
+          like(sql`lower(${agents.title})` as unknown as Column, `%${keyword.toLowerCase()}%`),
+          like(
+            sql`lower(${agents.description})` as unknown as Column,
+            `%${keyword.toLowerCase()}%`,
           ),
         ),
         with: { agentsToSessions: { columns: {}, with: { session: true } } },
