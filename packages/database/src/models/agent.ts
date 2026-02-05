@@ -29,7 +29,7 @@ export class AgentModel {
 
   getAgentConfigById = async (id: string) => {
     const agent = await this.db.query.agents.findFirst({
-      where: and(eq(agents.id, id), eq(agents.userId, this.userId)),
+      where: eq(agents.id, id),
     });
 
     if (!agent) return null;
@@ -45,10 +45,7 @@ export class AgentModel {
   queryAgents = async (params?: { keyword?: string; limit?: number; offset?: number }) => {
     const { keyword, limit = 9999, offset = 0 } = params ?? {};
     // Include agents where virtual is false OR null (legacy data without virtual field)
-    const baseConditions = and(
-      eq(agents.userId, this.userId),
-      or(eq(agents.virtual, false), isNull(agents.virtual)),
-    );
+    const baseConditions = or(eq(agents.virtual, false), isNull(agents.virtual));
 
     // Add keyword search condition if provided
     const searchCondition = keyword
@@ -78,10 +75,7 @@ export class AgentModel {
    */
   getAgentConfig = async (idOrSlug: string) => {
     const agent = await this.db.query.agents.findFirst({
-      where: and(
-        eq(agents.userId, this.userId),
-        or(eq(agents.id, idOrSlug), eq(agents.slug, idOrSlug)),
-      ),
+      where: or(eq(agents.id, idOrSlug), eq(agents.slug, idOrSlug)),
     });
 
     if (!agent) return null;
@@ -105,7 +99,7 @@ export class AgentModel {
 
     if (enabledFileIds.length > 0) {
       const documentsData = await this.db.query.documents.findMany({
-        where: and(eq(documents.userId, this.userId), inArray(documents.fileId, enabledFileIds)),
+        where: inArray(documents.fileId, enabledFileIds),
       });
 
       const documentMap = new Map(documentsData.map((doc) => [doc.fileId, doc.content]));
@@ -120,20 +114,17 @@ export class AgentModel {
 
   getAgentAssignedKnowledge = async (id: string) => {
     // Run both queries in parallel for better performance
-    // Include userId check to ensure user can only access their own agent's knowledge
     const [knowledgeBaseResult, fileResult] = await Promise.all([
       this.db
         .select({ enabled: agentsKnowledgeBases.enabled, knowledgeBases })
         .from(agentsKnowledgeBases)
-        .where(
-          and(eq(agentsKnowledgeBases.agentId, id), eq(agentsKnowledgeBases.userId, this.userId)),
-        )
+        .where(eq(agentsKnowledgeBases.agentId, id))
         .orderBy(desc(agentsKnowledgeBases.createdAt))
         .leftJoin(knowledgeBases, eq(knowledgeBases.id, agentsKnowledgeBases.knowledgeBaseId)),
       this.db
         .select({ enabled: agentsFiles.enabled, files })
         .from(agentsFiles)
-        .where(and(eq(agentsFiles.agentId, id), eq(agentsFiles.userId, this.userId)))
+        .where(eq(agentsFiles.agentId, id))
         .orderBy(desc(agentsFiles.createdAt))
         .leftJoin(files, eq(files.id, agentsFiles.fileId)),
     ]);
@@ -155,10 +146,7 @@ export class AgentModel {
    */
   findBySessionId = async (sessionId: string) => {
     const item = await this.db.query.agentsToSessions.findFirst({
-      where: and(
-        eq(agentsToSessions.sessionId, sessionId),
-        eq(agentsToSessions.userId, this.userId),
-      ),
+      where: eq(agentsToSessions.sessionId, sessionId),
     });
 
     if (!item) return;
@@ -523,7 +511,7 @@ export class AgentModel {
   getBuiltinAgent = async (slug: string): Promise<AgentItem | null> => {
     // 1. First try to find existing agent by slug
     const existing = await this.db.query.agents.findFirst({
-      where: and(eq(agents.slug, slug), eq(agents.userId, this.userId)),
+      where: eq(agents.slug, slug),
     });
 
     if (existing) return existing;
@@ -538,7 +526,7 @@ export class AgentModel {
         .from(sessions)
         .innerJoin(agentsToSessions, eq(sessions.id, agentsToSessions.sessionId))
         .innerJoin(agents, eq(agentsToSessions.agentId, agents.id))
-        .where(and(eq(sessions.slug, INBOX_SESSION_ID), eq(sessions.userId, this.userId)))
+        .where(eq(sessions.slug, INBOX_SESSION_ID))
         .limit(1);
 
       if (result.length > 0 && result[0].agent) {
