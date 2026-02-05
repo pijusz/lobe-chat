@@ -253,7 +253,7 @@ export class MessageModel {
         /* eslint-enable */
       })
       .from(messages)
-      .where(and(this.matchSession(sessionId), this.matchTopic(topicId), this.matchGroup(groupId)))
+      .where(where)
       .leftJoin(messagePlugins, eq(messagePlugins.id, messages.id))
       .leftJoin(messageTranslates, eq(messageTranslates.id, messages.id))
       .leftJoin(messageTTS, eq(messageTTS.id, messages.id))
