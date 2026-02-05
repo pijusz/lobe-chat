@@ -126,44 +126,10 @@ export class TopicModel {
       return { items, total: totalResult[0].count };
     }
 
-    // If agentId is provided, query topics that match either:
-    // 1. topics.agentId = agentId (new data with agentId stored directly)
-    // 2. topics.sessionId = associated sessionId (legacy data via agentsToSessions lookup)
-    // 3. For inbox: sessionId IS NULL AND groupId IS NULL AND agentId IS NULL (legacy inbox data)
+    // SHARED WORKSPACE: Show all topics regardless of agentId
+    // Previously filtered by agentId, but for shared workspace all users should see all topics
     if (agentId) {
-      // Get the associated sessionId for backward compatibility with legacy data
-      const agentSession = await this.db
-        .select({ sessionId: agentsToSessions.sessionId })
-        .from(agentsToSessions)
-        .where(and(eq(agentsToSessions.agentId, agentId), eq(agentsToSessions.userId, this.userId)))
-        .limit(1);
-
-      const associatedSessionId = agentSession[0]?.sessionId;
-
-      // Build condition to match both new (agentId) and legacy (sessionId) data
-      let agentCondition;
-      if (isInbox) {
-        // For inbox agent: query topics that match:
-        // 1. topics.agentId = agentId (new data)
-        // 2. topics.sessionId = associatedSessionId (legacy data with session relation)
-        // 3. sessionId IS NULL AND groupId IS NULL AND agentId IS NULL (very old legacy inbox data)
-        const conditions = [
-          eq(topics.agentId, agentId),
-          and(isNull(topics.sessionId), isNull(topics.groupId), isNull(topics.agentId)),
-        ];
-        // Also include topics linked via legacy session relation
-        if (associatedSessionId) {
-          conditions.push(eq(topics.sessionId, associatedSessionId));
-        }
-        agentCondition = or(...conditions);
-      } else if (associatedSessionId) {
-        agentCondition = or(eq(topics.agentId, agentId), eq(topics.sessionId, associatedSessionId));
-      } else {
-        agentCondition = eq(topics.agentId, agentId);
-      }
-
-      // Fetch items and total count in parallel
-      // Include sessionId and agentId for migration detection
+      // Fetch ALL topics (no agent filtering for shared workspace)
       const [items, totalResult] = await Promise.all([
         this.db
           .select({
@@ -176,14 +142,14 @@ export class TopicModel {
             updatedAt: topics.updatedAt,
           })
           .from(topics)
-          .where(and(agentCondition, excludeTriggerCondition))
+          .where(excludeTriggerCondition)
           .orderBy(desc(topics.favorite), desc(topics.updatedAt))
           .limit(pageSize)
           .offset(offset),
         this.db
           .select({ count: count(topics.id) })
           .from(topics)
-          .where(and(agentCondition, excludeTriggerCondition)),
+          .where(excludeTriggerCondition),
       ]);
 
       return { items, total: totalResult[0].count };
