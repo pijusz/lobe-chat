@@ -384,14 +384,14 @@ const ChatGroupWizard = memo<ChatGroupWizardProps>(
       if (!searchLower) return groupTemplates;
 
       return groupTemplates.filter((template) => {
-        if (template.title.toLowerCase().includes(searchLower)) return true;
-        if (template.description.toLowerCase().includes(searchLower)) return true;
+        if ((template.title || '').toLowerCase().includes(searchLower)) return true;
+        if ((template.description || '').toLowerCase().includes(searchLower)) return true;
 
         return template.members.some(
           (member) =>
             member !== null &&
             member !== undefined &&
-            member.title.toLowerCase().includes(searchLower),
+            (member.title || '').toLowerCase().includes(searchLower),
         );
       });
     }, [groupTemplates, searchTerm]);
