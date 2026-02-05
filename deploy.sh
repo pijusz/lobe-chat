@@ -11,11 +11,11 @@ VPS_HOST="vultr"  # Assumes SSH config alias, or replace with IP
 echo "=== Step 1: Fetch upstream changes ==="
 git fetch upstream
 
-echo "=== Step 2: Rebase on upstream/next ==="
-git pull --rebase upstream next
+echo "=== Step 2: Rebase on upstream/main ==="
+git pull --rebase upstream main
 
 echo "=== Step 3: Push to fork ==="
-git push origin next --force-with-lease
+git push origin main --force-with-lease
 
 echo "=== Step 4: Build Docker image (AMD64) ==="
 docker build -f Dockerfile.nolint --platform linux/amd64 -t ${REGISTRY}:latest .

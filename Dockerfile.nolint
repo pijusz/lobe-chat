@@ -25,14 +25,11 @@ EOF
 ## Builder image, install all the dependencies and build the app
 FROM base AS builder
 
-ENV NEXT_PUBLIC_ENABLE_BETTER_AUTH="1" \
-    NEXT_PUBLIC_ENABLE_NEXT_AUTH="0" \
-    NEXT_PUBLIC_ENABLE_CLERK_AUTH="0" \
-    CLERK_WEBHOOK_SECRET="whsec_xxx" \
-    APP_URL="http://app.com" \
+ENV APP_URL="http://app.com" \
     DATABASE_DRIVER="node" \
     DATABASE_URL="postgres://postgres:password@localhost:5432/postgres" \
-    KEY_VAULTS_SECRET="use-for-build"
+    KEY_VAULTS_SECRET="use-for-build" \
+    AUTH_SECRET="use-for-build"
 
 # Node
 ENV NODE_OPTIONS="--max-old-space-size=6144"
@@ -41,6 +38,7 @@ WORKDIR /app
 
 COPY package.json pnpm-workspace.yaml ./
 COPY .npmrc ./
+COPY patches ./patches
 COPY packages ./packages
 COPY apps/desktop/src/main/package.json ./apps/desktop/src/main/package.json
 
