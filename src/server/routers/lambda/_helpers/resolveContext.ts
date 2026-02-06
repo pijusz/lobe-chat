@@ -27,7 +27,8 @@ export interface ResolvedContext {
 export const resolveContext = async (
   input: ConversationContextInput,
   db: LobeChatDatabase,
-  userId: string,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _userId: string,
 ): Promise<ResolvedContext> => {
   let resolvedSessionId: string | null = input.sessionId ?? null;
 
@@ -66,7 +67,8 @@ export const resolveContext = async (
 export const resolveAgentIdFromSession = async (
   sessionId: string,
   db: LobeChatDatabase,
-  userId: string,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _userId: string,
 ): Promise<string | undefined> => {
   const [relation] = await db
     .select({ agentId: agentsToSessions.agentId })
@@ -90,7 +92,8 @@ export const resolveAgentIdFromSession = async (
 export const batchResolveAgentIdFromSessions = async (
   sessionIds: string[],
   db: LobeChatDatabase,
-  userId: string,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _userId: string,
 ): Promise<Map<string, string>> => {
   if (sessionIds.length === 0) return new Map();
 

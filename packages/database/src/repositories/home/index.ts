@@ -53,7 +53,8 @@ export class HomeRepository {
       .from(agents)
       .leftJoin(agentsToSessions, eq(agents.id, agentsToSessions.agentId))
       .leftJoin(sessions, eq(agentsToSessions.sessionId, sessions.id))
-      .where(and(eq(agents.userId, this.userId), not(eq(agents.virtual, true))))
+      // SHARED WORKSPACE: Show all agents from all users
+      .where(not(eq(agents.virtual, true)))
       .orderBy(desc(agents.updatedAt));
 
     // 2. Query all chatGroups (group chats)
@@ -67,7 +68,7 @@ export class HomeRepository {
         updatedAt: chatGroups.updatedAt,
       })
       .from(chatGroups)
-      .where(eq(chatGroups.userId, this.userId))
+      // SHARED WORKSPACE: Show all chat groups from all users
       .orderBy(desc(chatGroups.updatedAt));
 
     // 2.1 Query member avatars for each chat group
@@ -81,7 +82,7 @@ export class HomeRepository {
         sort: sessionGroups.sort,
       })
       .from(sessionGroups)
-      .where(eq(sessionGroups.userId, this.userId))
+      // SHARED WORKSPACE: Show all session groups from all users
       .orderBy(sessionGroups.sort);
 
     // 4. Process and categorize
@@ -202,9 +203,9 @@ export class HomeRepository {
       .from(agents)
       .leftJoin(agentsToSessions, eq(agents.id, agentsToSessions.agentId))
       .leftJoin(sessions, eq(agentsToSessions.sessionId, sessions.id))
+      // SHARED WORKSPACE: Search all agents from all users
       .where(
         and(
-          eq(agents.userId, this.userId),
           not(eq(agents.virtual, true)),
           or(ilike(agents.title, searchPattern), ilike(agents.description, searchPattern)),
         ),
@@ -221,11 +222,9 @@ export class HomeRepository {
         updatedAt: chatGroups.updatedAt,
       })
       .from(chatGroups)
+      // SHARED WORKSPACE: Search all chat groups from all users
       .where(
-        and(
-          eq(chatGroups.userId, this.userId),
-          or(ilike(chatGroups.title, searchPattern), ilike(chatGroups.description, searchPattern)),
-        ),
+        or(ilike(chatGroups.title, searchPattern), ilike(chatGroups.description, searchPattern)),
       )
       .orderBy(desc(chatGroups.updatedAt));
 

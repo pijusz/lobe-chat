@@ -268,12 +268,7 @@ export class TopicModel {
       const agentSession = await this.db
         .select({ sessionId: agentsToSessions.sessionId })
         .from(agentsToSessions)
-        .where(
-          and(
-            eq(agentsToSessions.agentId, params.agentId),
-            eq(agentsToSessions.userId, this.userId),
-          ),
-        )
+        .where(eq(agentsToSessions.agentId, params.agentId))
         .limit(1);
 
       const associatedSessionId = agentSession[0]?.sessionId;
@@ -330,6 +325,8 @@ export class TopicModel {
    * - For inbox: includes topics with slug='inbox'
    */
   queryRecent = async (limit: number = 12) => {
+    // SHARED WORKSPACE: Get all recent topics from all users
+    // Only exclude topics from virtual agents (not inbox)
     const result = await this.db
       .select({
         agentId: topics.agentId,
@@ -345,10 +342,15 @@ export class TopicModel {
         or(
           // Group topics: has groupId
           not(isNull(topics.groupId)),
+          // Topics without agentId (legacy or orphaned) - include them
+          isNull(topics.agentId),
           // Inbox agent topics
           eq(agents.slug, 'inbox'),
-          // Agent topics: exclude virtual agents
-          and(isNull(topics.groupId), ne(agents.virtual, true)),
+          // Agent topics: exclude virtual agents, but include topics where agent doesn't exist (NULL check)
+          and(
+            isNull(topics.groupId),
+            or(isNull(agents.virtual), ne(agents.virtual, true)),
+          ),
         ),
       )
       .orderBy(desc(topics.updatedAt))

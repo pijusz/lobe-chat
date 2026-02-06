@@ -13,11 +13,11 @@ const disabledAiProviderModelList = (s: AIProviderStoreState) =>
   s.aiProviderModelList.filter((item) => !item.enabled);
 
 const filteredAiProviderModelList = (s: AIProviderStoreState) => {
-  const keyword = s.modelSearchKeyword.toLowerCase().trim();
+  const keyword = (s.modelSearchKeyword || '').toLowerCase().trim();
 
   return s.aiProviderModelList.filter(
     (model) =>
-      model.id.toLowerCase().includes(keyword) ||
+      (model.id || '').toLowerCase().includes(keyword) ||
       model.displayName?.toLowerCase().includes(keyword),
   );
 };

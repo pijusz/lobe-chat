@@ -10,8 +10,8 @@ import { DiscoverService } from '@/server/services/discover';
  * 1 = exact match, 2 = prefix match, 3 = contains match
  */
 function calculateMarketplaceRelevance(query: string, title: string): number {
-  const lowerQuery = query.toLowerCase().trim();
-  const lowerTitle = title.toLowerCase();
+  const lowerQuery = (query || '').toLowerCase().trim();
+  const lowerTitle = (title || '').toLowerCase();
 
   if (lowerTitle === lowerQuery) return 1;
   if (lowerTitle.startsWith(lowerQuery)) return 2;

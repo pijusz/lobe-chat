@@ -165,12 +165,24 @@ export class MessageModel {
     }
 
     // Standard query with session/topic/group filters
-    const whereCondition = and(
-      agentCondition ?? this.matchSession(sessionId),
-      this.matchTopic(topicId),
-      this.matchGroup(groupId),
-      this.matchThread(threadId),
-    );
+    // For shared workspace: if topicId is provided, don't filter by agent/session
+    // to allow viewing all messages in a topic regardless of who created them
+    const whereCondition = topicId
+      ? and(
+          this.matchTopic(topicId),
+          this.matchGroup(groupId),
+          this.matchThread(threadId),
+        )
+      : and(
+          agentCondition ?? this.matchSession(sessionId),
+          this.matchTopic(topicId),
+          this.matchGroup(groupId),
+          this.matchThread(threadId),
+        );
+
+    // Debug: log the query params
+    console.log('[MessageModel.query] params:', { agentId, sessionId, topicId, groupId, threadId });
+    console.log('[MessageModel.query] using topicId-only condition:', !!topicId);
 
     return this.queryWithWhere({
       current,
@@ -420,9 +432,7 @@ export class MessageModel {
           title: threads.title,
         })
         .from(threads)
-        .where(
-          and(eq(threads.userId, this.userId), inArray(threads.sourceMessageId, taskMessageIds)),
-        );
+        .where(inArray(threads.sourceMessageId, taskMessageIds));
 
       threadMap = new Map(
         threadData.map((t) => {
@@ -586,7 +596,7 @@ export class MessageModel {
         /* eslint-enable */
       })
       .from(messages)
-      .where(and(eq(messages.userId, this.userId), inArray(messages.id, messageIds)))
+      .where(inArray(messages.id, messageIds))
       .leftJoin(messagePlugins, eq(messagePlugins.id, messages.id))
       .leftJoin(messageTranslates, eq(messageTranslates.id, messages.id))
       .leftJoin(messageTTS, eq(messageTTS.id, messages.id))
@@ -652,9 +662,7 @@ export class MessageModel {
               title: threads.title,
             })
             .from(threads)
-            .where(
-              and(eq(threads.userId, this.userId), inArray(threads.sourceMessageId, taskMessageIds)),
-            )
+            .where(inArray(threads.sourceMessageId, taskMessageIds))
         : Promise.resolve([]),
     ]);
 
@@ -982,7 +990,7 @@ export class MessageModel {
     // For Standalone type, only return the source message
     if (threadType === ThreadType.Standalone) {
       const sourceMessage = await this.db.query.messages.findFirst({
-        where: and(eq(messages.id, sourceMessageId), eq(messages.userId, this.userId)),
+        where: eq(messages.id, sourceMessageId),
       });
 
       return sourceMessage ? [sourceMessage as DBMessageItem] : [];
@@ -990,7 +998,7 @@ export class MessageModel {
 
     // For Continuation type, get the source message first to know its createdAt
     const sourceMessage = await this.db.query.messages.findFirst({
-      where: and(eq(messages.id, sourceMessageId), eq(messages.userId, this.userId)),
+      where: eq(messages.id, sourceMessageId),
     });
 
     if (!sourceMessage) return [];
@@ -1003,7 +1011,6 @@ export class MessageModel {
       .from(messages)
       .where(
         and(
-          eq(messages.userId, this.userId),
           eq(messages.topicId, topicId),
           isNull(messages.threadId), // Only main conversation messages (not in any thread)
           or(

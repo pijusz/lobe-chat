@@ -14,8 +14,9 @@ export const useBuildListItems = (
       return [{ type: 'no-provider' }] as ListItem[];
     }
 
-    const matchesSearch = (text: string): boolean => {
+    const matchesSearch = (text: string | undefined | null): boolean => {
       if (!searchKeyword.trim()) return true;
+      if (!text || typeof text !== 'string') return false;
       const keyword = searchKeyword.toLowerCase().trim();
       return text.toLowerCase().includes(keyword);
     };

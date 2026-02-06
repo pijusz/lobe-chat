@@ -18,11 +18,11 @@ const SearchResult = memo((props: { onProviderSelect?: (key: string) => void }) 
 
   // 使用 useMemo 优化过滤性能
   const filteredProviders = useMemo(() => {
-    const keyword = searchKeyword.toLowerCase().trim();
+    const keyword = (searchKeyword || '').toLowerCase().trim();
 
     return aiProviderList.filter(
       (provider) =>
-        provider.id.toLowerCase().includes(keyword) ||
+        (provider.id || '').toLowerCase().includes(keyword) ||
         provider.name?.toLowerCase().includes(keyword) ||
         provider.description?.toLowerCase().includes(keyword),
     );

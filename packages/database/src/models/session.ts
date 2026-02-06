@@ -54,6 +54,7 @@ export class SessionModel {
     const offset = current * pageSize;
 
     // Use leftJoin instead of nested with for better performance
+    // NOTE: For shared workspace, we query ALL sessions regardless of userId
     const result = await this.db
       .select({
         // Agent fields (from agentsToSessions join)
@@ -71,6 +72,9 @@ export class SessionModel {
       .orderBy(desc(sessions.updatedAt))
       .limit(pageSize)
       .offset(offset);
+
+    // Debug: log the query result count
+    console.log('[SessionModel.query] Found sessions count:', result.length);
 
     // Group results by session (since leftJoin can create multiple rows per session)
     // Use Map to preserve order
@@ -110,7 +114,7 @@ export class SessionModel {
   };
 
   queryByKeyword = async (keyword: string) => {
-    if (!keyword) return [];
+    if (!keyword || typeof keyword !== 'string') return [];
 
     const keywordLowerCase = keyword.toLowerCase();
 

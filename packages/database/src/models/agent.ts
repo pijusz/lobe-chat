@@ -331,11 +331,12 @@ export class AgentModel {
       .returning();
   };
 
+  // SHARED WORKSPACE: Allow any user to update agent (e.g. pin/unpin)
   update = async (agentId: string, data: Partial<AgentItem>) => {
     return this.db
       .update(agents)
       .set({ ...data, updatedAt: new Date() })
-      .where(and(eq(agents.id, agentId), eq(agents.userId, this.userId)));
+      .where(eq(agents.id, agentId));
   };
 
   touchUpdatedAt = async (agentId: string) => {
@@ -387,8 +388,9 @@ export class AgentModel {
   updateConfig = async (agentId: string, data: PartialDeep<AgentItem> | undefined | null) => {
     if (!data || Object.keys(data).length === 0) return;
 
+    // SHARED WORKSPACE: Allow any user to update agent config (e.g. model selection)
     const agent = await this.db.query.agents.findFirst({
-      where: and(eq(agents.id, agentId), eq(agents.userId, this.userId)),
+      where: eq(agents.id, agentId),
     });
 
     if (!agent) return;
@@ -438,20 +440,22 @@ export class AgentModel {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { updatedAt: _, accessedAt: __, createdAt: ___, ...updateData } = mergedValue;
 
+    // SHARED WORKSPACE: Allow any user to update agent config
     return this.db
       .update(agents)
       .set(updateData)
-      .where(and(eq(agents.id, agentId), eq(agents.userId, this.userId)));
+      .where(eq(agents.id, agentId));
   };
 
   /**
    * Update the sessionGroupId for an agent
    */
   updateSessionGroupId = async (agentId: string, sessionGroupId: string | null) => {
+    // SHARED WORKSPACE: Allow any user to update session group
     const result = await this.db
       .update(agents)
       .set({ sessionGroupId, updatedAt: new Date() })
-      .where(and(eq(agents.id, agentId), eq(agents.userId, this.userId)))
+      .where(eq(agents.id, agentId))
       .returning();
 
     return result[0];
@@ -463,8 +467,9 @@ export class AgentModel {
    */
   duplicate = async (agentId: string, newTitle?: string): Promise<{ agentId: string } | null> => {
     // Get the source agent
+    // SHARED WORKSPACE: Allow any user to duplicate an agent
     const sourceAgent = await this.db.query.agents.findFirst({
-      where: and(eq(agents.id, agentId), eq(agents.userId, this.userId)),
+      where: eq(agents.id, agentId),
     });
 
     if (!sourceAgent) return null;
